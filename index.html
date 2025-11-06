@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Foreclosure Checklist</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f4;
+        }
+        #app {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+        .page h2 {
+            margin-top: 0;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+        .question {
+            margin-bottom: 20px;
+        }
+        .question label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .question input[type="text"], .question input[type="date"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .question .radio-group {
+            margin-bottom: 10px;
+        }
+        .question .radio-group label {
+            margin-right: 20px;
+            font-weight: normal;
+        }
+        .defendant-group {
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .defendant-group h4 {
+            margin: 0 0 10px 0;
+        }
+        #nextBtn, #addDefendantBtn {
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #nextBtn:hover, #addDefendantBtn:hover {
+            background-color: #0056b3;
+        }
+        #addDefendantBtn {
+            margin-top: 10px;
+            background-color: #28a745;
+        }
+        #addDefendantBtn:hover {
+            background-color: #218838;
+        }
+        .sub-question {
+            margin-left: 20px;
+        }
+        .nested-sub-question {
+            margin-left: 40px;
+        }
+        .question-group-label {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Pages will be dynamically inserted here -->
+    </div>
+
+    <script src="https://unpkg.com/docx@7.8.2/build/index.js"></script>
+    <script>
+        const questions = [
+            { id: 'docket', label: 'Docket #:', type: 'text', section: 'Case Information' },
+            { id: 'caseName', label: 'Case Name:', type: 'text', section: 'Case Information' },
+            { id: 'propertyAddress', label: 'Property Address:', type: 'text', section: 'Case Information' },
+            { id: 'descriptionMatchesDeed', label: 'Description in complaint same as in deed into owner:', type: 'radio', options: ['Y', 'N'], section: 'Case Information' },
+            { id: 'interestForeclosed', label: 'Interest being foreclosed:', type: 'text', section: 'Case Information' },
+            { id: 'priorInterests', label: 'Prior interests:', type: 'text', section: 'Case Information' },
+            { id: 'courtLocation', label: 'Court Location:', type: 'text', section: 'Case Information' },
+            { id: 'defendants', label: 'Defendants:', type: 'defendant', fields: ['Name', 'Service', 'Appearance', 'Assigned Law Day'], section: 'Defendants' },
+            { id: 'titleAbsolute', label: 'Title Absolute to Plaintiff:', type: 'radio', options: ['Yes', 'No'], section: 'Defendants' },
+            { id: 'judgmentDate', label: 'Date:', type: 'date', section: 'Defendants' },
+            { id: 'plaintiffName', label: 'Name of Plaintiff:', type: 'text', section: 'Defendants' },
+            { id: 'titleVestedIn', label: 'Title vested in:', type: 'text', section: 'Defendants' },
+            { id: 'committee', label: 'Committee:', type: 'text', section: 'Judgment of Foreclosure by Sale' },
+            { id: 'saleDate', label: 'Sale Date:', type: 'date', section: 'Judgment of Foreclosure by Sale' },
+            { id: 'committeeReportDate', label: 'Committee Report Filed On:', type: 'date', section: 'Judgment of Foreclosure by Sale' },
+            { id: 'returnDate', label: 'Return Date:', type: 'date', section: 'Judgment of Foreclosure by Sale' },
+            { id: 'successfulBidder', label: 'Name of Successful Bidder:', type: 'text', section: 'Judgment of Foreclosure by Sale' },
+            { id: 'appraisedValue', label: 'Appraised Value: $', type: 'text', section: 'Judgment of Foreclosure by Sale' },
+            { id: 'saleStatus', label: 'Sale Approved / Denied:', type: 'radio', options: ['Approved', 'Denied'], section: 'Judgment of Foreclosure by Sale' },
+            { id: 'saleStatusDate', label: 'Sale Approved / Denied Date:', type: 'date', section: 'Judgment of Foreclosure by Sale' },
+            { id: 'bidAmount', label: 'Amount of Bid: $', type: 'text', section: 'Judgment of Foreclosure by Sale' },
+            { id: 'judgeName', label: 'By Judge:', type: 'text', section: 'Judgment of Foreclosure by Sale' },
+            { id: 'assocForeclosure', label: 'Association Foreclosure (complete for foreclosures after 7/1/2010): Complaint alleges:', type: 'text', section: 'Judgment of Foreclosure by Sale' },
+            { id: 'assocVoteDate', label: 'Association Board vote Date:', type: 'date', section: 'Judgment of Foreclosure by Sale' },
+            { id: 'ruleAdoptionDate', label: 'Adoption of rule Date:', type: 'date', section: 'Judgment of Foreclosure by Sale' },
+            { id: 'compliantStatute', label: 'Compliant with statute/CIOA:', type: 'text', section: 'Judgment of Foreclosure by Sale' },
+            { id: 'redemption', label: '1. Any Indication of Redemption?', type: 'radio', options: ['No', 'Yes'], section: 'Questions' },
+            { id: 'satisfactionFiled', label: '1a. If yes, satisfaction of Judgment filed date:', type: 'date', parentId: 'redemption', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'redeemingParty', label: '1b. Redeeming Party:', type: 'text', parentId: 'redemption', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'redemptionDate', label: '1b.i. Date:', type: 'date', parentId: 'redemption', conditionValue: 'Yes', section: 'Questions', nested: true },
+            { id: 'noticeCert', label: '2. If non-appearing defendants, Cert. filed by plaintiff counsel of notice under PB 17-22?', type: 'radio', options: ['No', 'Yes'], section: 'Questions' },
+            { id: 'heirsNamedA', label: '3a. that all of the heirs/devisees have been named as defendants?', type: 'radio', options: ['No', 'Yes'], section: 'Questions', groupLabel: '3. If a mortgagor/owner passed away prior to the commencement of the foreclosure, does complaint allege:' },
+            { id: 'heirsServed', label: '3b. Were all served?', type: 'radio', options: ['No', 'Yes'], parentId: 'heirsNamedA', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'subordinateLien', label: '3c. Does DRS or Probate Court hold a subordinate lien?', type: 'radio', options: ['No', 'Yes'], section: 'Questions' },
+            { id: 'stateServed', label: '3c.i. If Yes to above, was State of CT served through CT Attorney General?', type: 'radio', options: ['No', 'Yes'], parentId: 'subordinateLien', conditionValue: 'Yes', section: 'Questions', nested: true },
+            { id: 'irsNotice', label: '4. For a strict foreclosure, attach copies of any special notice given to the IRS during the pendency of the action, if a federal tax lien was recorded during the pendency of the foreclosure:', type: 'text', section: 'Questions' },
+            { id: 'bankruptcy', label: '5. Any Indication of Bankruptcy?', type: 'radio', options: ['No', 'Yes'], section: 'Questions' },
+            { id: 'debtorName', label: '5a. Debtor Name:', type: 'text', parentId: 'bankruptcy', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'exemptionClaim', label: '5b. If Yes: Claim of Exemption filed by:', type: 'text', parentId: 'bankruptcy', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'petitionDate', label: '5c. Date of Petition:', type: 'date', parentId: 'bankruptcy', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'bankruptcyCase', label: '5d. Case #:', type: 'text', parentId: 'bankruptcy', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'bankruptcyCourt', label: '5e. Bankruptcy Court District:', type: 'text', parentId: 'bankruptcy', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'reliefStay', label: '5f. Relief from Stay:', type: 'text', parentId: 'bankruptcy', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'motionToOpen', label: '6. Any Indication of Motion to Open?', type: 'radio', options: ['No', 'Yes'], section: 'Questions' },
+            { id: 'motionFiledBy', label: '6a. If Yes, filed by:', type: 'text', parentId: 'motionToOpen', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'motionStatus', label: '6b. Denied / Granted by Judge:', type: 'radio', options: ['Denied', 'Granted'], parentId: 'motionToOpen', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'lawDayExtend', label: '6c. Law Day Extend:', type: 'date', parentId: 'motionToOpen', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'saleDateExtend', label: '6d. Sale Date Extend:', type: 'date', parentId: 'motionToOpen', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'appeal', label: '7. Any Indication of Appeal?', type: 'radio', options: ['No', 'Yes'], section: 'Questions' },
+            { id: 'appealFiledBy', label: '7a. If Yes, Filed by:', type: 'text', parentId: 'appeal', conditionValue: 'Yes', section: 'Questions' },
+            { id: 'appealRuling', label: '7b. From which ruling?', type: 'text', parentId: 'appeal', conditionValue: 'Yes', section: 'Questions' }
+        ];
+
+        const sections = [
+            { name: 'Case Information', questionIndices: [0, 1, 2, 3, 4, 5, 6] },
+            { name: 'Defendants', questionIndices: [7, 8, 9, 10, 11] },
+            { name: 'Judgment of Foreclosure by Sale', questionIndices: [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24] },
+            { name: 'Questions', questionIndices: [25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49] }
+        ];
+
+        const app = document.getElementById('app');
+        let currentSectionIndex = 0;
+        let answers = {};
+
+        function renderSection(sectionIndex) {
+            app.innerHTML = '';
+            const section = sections[sectionIndex];
+            const pageDiv = document.createElement('div');
+            pageDiv.className = 'page active';
+            pageDiv.innerHTML = `<h2>${section.name}</h2>`;
+
+            let lastGroupLabel = null;
+
+            section.questionIndices.forEach(index => {
+                const question = questions[index];
+                const shouldShow = shouldShowQuestion(question);
+
+                if (question.groupLabel && question.groupLabel !== lastGroupLabel) {
+                    const groupLabelDiv = document.createElement('div');
+                    groupLabelDiv.className = 'question-group-label';
+                    groupLabelDiv.textContent = question.groupLabel;
+                    pageDiv.appendChild(groupLabelDiv);
+                    lastGroupLabel = question.groupLabel;
+                }
+
+                if (!shouldShow) return;
+
+                const div = document.createElement('div');
+                div.className = 'question' + (question.parentId ? (question.nested ? ' nested-sub-question' : ' sub-question') : '');
+                div.innerHTML = `<label>${question.label}</label>`;
+
+                if (question.type === 'text' || question.type === 'date') {
+                    const input = document.createElement('input');
+                    input.type = question.type === 'date' ? 'date' : 'text';
+                    input.id = question.id;
+                    input.value = answers[question.id] || '';
+                    input.addEventListener('input', () => saveAnswer(question.id, input.value));
+                    div.appendChild(input);
+                } else if (question.type === 'radio') {
+                    const radioGroup = document.createElement('div');
+                    radioGroup.className = 'radio-group';
+                    question.options.forEach(option => {
+                        const label = document.createElement('label');
+                        const radio = document.createElement('input');
+                        radio.type = 'radio';
+                        radio.name = question.id;
+                        radio.value = option;
+                        radio.checked = answers[question.id] === option;
+                        radio.addEventListener('change', () => {
+                            saveAnswer(question.id, option);
+                            renderSection(sectionIndex); // Re-render to show/hide subquestions
+                        });
+                        label.appendChild(radio);
+                        label.appendChild(document.createTextNode(` ${option}`));
+                        radioGroup.appendChild(label);
+                    });
+                    div.appendChild(radioGroup);
+                } else if (question.type === 'defendant') {
+                    answers[question.id] = answers[question.id] || [{}];
+                    for (let i = 0; i < 4; i++) {
+                        const defendantDiv = document.createElement('div');
+                        defendantDiv.className = 'defendant-group';
+                        defendantDiv.innerHTML = `<h4>Defendant ${i + 1}</h4>`;
+                        question.fields.forEach(field => {
+                            const input = document.createElement('input');
+                            input.type = field.includes('Date') ? 'date' : 'text';
+                            input.placeholder = field;
+                            input.id = `${question.id}_${i}_${field.replace(/\s+/g, '')}`;
+                            input.value = (answers[question.id][i] && answers[question.id][i][field]) || '';
+                            input.addEventListener('input', () => {
+                                if (!answers[question.id][i]) answers[question.id][i] = {};
+                                answers[question.id][i][field] = input.value;
+                            });
+                            defendantDiv.appendChild(input);
+                        });
+                        div.appendChild(defendantDiv);
+                    }
+                    const addBtn = document.createElement('button');
+                    addBtn.id = 'addDefendantBtn';
+                    addBtn.textContent = 'Add Defendant';
+                    addBtn.onclick = () => {
+                        answers[question.id].push({});
+                        renderSection(sectionIndex);
+                    };
+                    div.appendChild(addBtn);
+                }
+
+                pageDiv.appendChild(div);
+            });
+
+            const nextBtn = document.createElement('button');
+            nextBtn.id = 'nextBtn';
+            nextBtn.textContent = sectionIndex < sections.length - 1 ? 'Next' : 'Generate Report';
+            nextBtn.onclick = () => {
+                if (sectionIndex < sections.length - 1) {
+                    currentSectionIndex++;
+                    renderSection(currentSectionIndex);
+                } else {
+                    generateReport();
+                }
+            };
+            pageDiv.appendChild(nextBtn);
+            app.appendChild(pageDiv);
+        }
+
+        function shouldShowQuestion(question) {
+            if (!question.parentId) return true;
+            return answers[question.parentId] === question.conditionValue;
+        }
+
+        function saveAnswer(id, value) {
+            answers[id] = value;
+        }
+
+        function generateReport() {
+            const { Document, Packer, Paragraph, TextRun, HeadingLevel } = docx;
+
+            const doc = new Document({
+                sections: [{
+                    properties: {},
+                    children: [
+                        new Paragraph({
+                            text: "FORECLOSURE CHECKLIST",
+                            heading: HeadingLevel.HEADING_1,
+                            alignment: 'center',
+                            bold: true,
+                            spacing: { after: 200 }
+                        }),
+                        new Paragraph({
+                            text: "CASE INFORMATION:",
+                            bold: true,
+                            underline: { type: 'single' },
+                            spacing: { before: 200 }
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Docket #: ", bold: true }),
+                                new TextRun({ text: `${answers.docket || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Case Name: ", bold: true }),
+                                new TextRun({ text: `${answers.caseName || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Property Address: ", bold: true }),
+                                new TextRun({ text: `${answers.propertyAddress || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Description in complaint same as in deed into owner: ", bold: true }),
+                                new TextRun({ text: `${answers.descriptionMatchesDeed || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Interest being foreclosed: ", bold: true }),
+                                new TextRun({ text: `${answers.interestForeclosed || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Prior interests: ", bold: true }),
+                                new TextRun({ text: `${answers.priorInterests || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Court Location: ", bold: true }),
+                                new TextRun({ text: `${answers.courtLocation || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            text: "DEFENDANTS:",
+                            bold: true,
+                            underline: { type: 'single' },
+                            spacing: { before: 200 }
+                        }),
+                        ...(answers.defendants || []).flatMap((defendant, index) => [
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: `Defendant ${index + 1}:`, bold: true })
+                                ]
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "Name: ", bold: true }),
+                                    new TextRun({ text: `${defendant.Name || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "Service: ", bold: true }),
+                                    new TextRun({ text: `${defendant.Service || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "Appearance: ", bold: true }),
+                                    new TextRun({ text: `${defendant.Appearance || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "Assigned Law Day: ", bold: true }),
+                                    new TextRun({ text: `${defendant['Assigned Law Day'] || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            })
+                        ]),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Title Absolute to Plaintiff: ", bold: true }),
+                                new TextRun({ text: `${answers.titleAbsolute || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Date: ", bold: true }),
+                                new TextRun({ text: `${answers.judgmentDate || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Name of Plaintiff: ", bold: true }),
+                                new TextRun({ text: `${answers.plaintiffName || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Title vested in: ", bold: true }),
+                                new TextRun({ text: `${answers.titleVestedIn || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            text: "JUDGMENT OF FORECLOSURE BY SALE:",
+                            bold: true,
+                            underline: { type: 'single' },
+                            spacing: { before: 200 }
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Committee: ", bold: true }),
+                                new TextRun({ text: `${answers.committee || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Sale Date: ", bold: true }),
+                                new TextRun({ text: `${answers.saleDate || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Committee Report Filed On: ", bold: true }),
+                                new TextRun({ text: `${answers.committeeReportDate || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Return Date: ", bold: true }),
+                                new TextRun({ text: `${answers.returnDate || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Name of Successful Bidder: ", bold: true }),
+                                new TextRun({ text: `${answers.successfulBidder || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Appraised Value: $", bold: true }),
+                                new TextRun({ text: `${answers.appraisedValue || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Sale Approved / Denied: ", bold: true }),
+                                new TextRun({ text: `${answers.saleStatus || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Sale Approved / Denied Date: ", bold: true }),
+                                new TextRun({ text: `${answers.saleStatusDate || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Amount of Bid: $", bold: true }),
+                                new TextRun({ text: `${answers.bidAmount || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "By Judge: ", bold: true }),
+                                new TextRun({ text: `${answers.judgeName || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            text: "Association Foreclosure (complete for foreclosures after 7/1/2010):",
+                            bold: true,
+                            spacing: { before: 200 }
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Complaint alleges: ", bold: true }),
+                                new TextRun({ text: `${answers.assocForeclosure || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Association Board vote Date: ", bold: true }),
+                                new TextRun({ text: `${answers.assocVoteDate || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Adoption of rule Date: ", bold: true }),
+                                new TextRun({ text: `${answers.ruleAdoptionDate || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "Compliant with statute/CIOA: ", bold: true }),
+                                new TextRun({ text: `${answers.compliantStatute || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            text: "QUESTIONS:",
+                            bold: true,
+                            underline: { type: 'single' },
+                            spacing: { before: 200 }
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "1. Any Indication of Redemption? ", bold: true }),
+                                new TextRun({ text: `${answers.redemption || ''}` })
+                            ]
+                        }),
+                        ...(answers.redemption === 'Yes' ? [
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "1a. If yes, satisfaction of Judgment filed date: ", bold: true }),
+                                    new TextRun({ text: `${answers.satisfactionFiled || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "1b. Redeeming Party: ", bold: true }),
+                                    new TextRun({ text: `${answers.redeemingParty || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "1b.i. Date: ", bold: true }),
+                                    new TextRun({ text: `${answers.redemptionDate || ''}` })
+                                ],
+                                indent: { left: 400 }
+                            })
+                        ] : []),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "2. If non-appearing defendants, Cert. filed by plaintiff counsel of notice under PB 17-22? ", bold: true }),
+                                new TextRun({ text: `${answers.noticeCert || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "3. If a mortgagor/owner passed away prior to the commencement of the foreclosure, does complaint allege:", bold: true })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "3a. that all of the heirs/devisees have been named as defendants? ", bold: true }),
+                                new TextRun({ text: `${answers.heirsNamedA || ''}` })
+                            ],
+                            indent: { left: 200 }
+                        }),
+                        ...(answers.heirsNamedA === 'Yes' ? [
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "3b. Were all served? ", bold: true }),
+                                    new TextRun({ text: `${answers.heirsServed || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            })
+                        ] : []),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "3c. Does DRS or Probate Court hold a subordinate lien? ", bold: true }),
+                                new TextRun({ text: `${answers.subordinateLien || ''}` })
+                            ],
+                            indent: { left: 200 }
+                        }),
+                        ...(answers.subordinateLien === 'Yes' ? [
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "3c.i. If Yes to above, was State of CT served through CT Attorney General? ", bold: true }),
+                                    new TextRun({ text: `${answers.stateServed || ''}` })
+                                ],
+                                indent: { left: 400 }
+                            })
+                        ] : []),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "4. For a strict foreclosure, attach copies of any special notice given to the IRS during the pendency of the action, if a federal tax lien was recorded during the pendency of the foreclosure: ", bold: true }),
+                                new TextRun({ text: `${answers.irsNotice || ''}` })
+                            ]
+                        }),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "5. Any Indication of Bankruptcy? ", bold: true }),
+                                new TextRun({ text: `${answers.bankruptcy || ''}` })
+                            ]
+                        }),
+                        ...(answers.bankruptcy === 'Yes' ? [
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "5a. Debtor Name: ", bold: true }),
+                                    new TextRun({ text: `${answers.debtorName || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "5b. If Yes: Claim of Exemption filed by: ", bold: true }),
+                                    new TextRun({ text: `${answers.exemptionClaim || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "5c. Date of Petition: ", bold: true }),
+                                    new TextRun({ text: `${answers.petitionDate || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "5d. Case #: ", bold: true }),
+                                    new TextRun({ text: `${answers.bankruptcyCase || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "5e. Bankruptcy Court District: ", bold: true }),
+                                    new TextRun({ text: `${answers.bankruptcyCourt || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "5f. Relief from Stay: ", bold: true }),
+                                    new TextRun({ text: `${answers.reliefStay || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            })
+                        ] : []),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "6. Any Indication of Motion to Open? ", bold: true }),
+                                new TextRun({ text: `${answers.motionToOpen || ''}` })
+                            ]
+                        }),
+                        ...(answers.motionToOpen === 'Yes' ? [
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "6a. If Yes, filed by: ", bold: true }),
+                                    new TextRun({ text: `${answers.motionFiledBy || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "6b. Denied / Granted by Judge: ", bold: true }),
+                                    new TextRun({ text: `${answers.motionStatus || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "6c. Law Day Extend: ", bold: true }),
+                                    new TextRun({ text: `${answers.lawDayExtend || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "6d. Sale Date Extend: ", bold: true }),
+                                    new TextRun({ text: `${answers.saleDateExtend || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            })
+                        ] : []),
+                        new Paragraph({
+                            children: [
+                                new TextRun({ text: "7. Any Indication of Appeal? ", bold: true }),
+                                new TextRun({ text: `${answers.appeal || ''}` })
+                            ]
+                        }),
+                        ...(answers.appeal === 'Yes' ? [
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "7a. If Yes, Filed by: ", bold: true }),
+                                    new TextRun({ text: `${answers.appealFiledBy || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            }),
+                            new Paragraph({
+                                children: [
+                                    new TextRun({ text: "7b. From which ruling? ", bold: true }),
+                                    new TextRun({ text: `${answers.appealRuling || ''}` })
+                                ],
+                                indent: { left: 200 }
+                            })
+                        ] : [])
+                    ]
+                }]
+            });
+
+            Packer.toBlob(doc).then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Foreclosure_Checklist.docx';
+                a.click();
+                window.URL.revokeObjectURL(url);
+            });
+        }
+
+        renderSection(0);
+    </script>
+</body>
+</html>
